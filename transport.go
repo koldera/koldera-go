@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -27,12 +28,14 @@ const (
 )
 
 type transport struct {
-	http      *http.Client
-	base      string
-	token     string
-	timeout   time.Duration
-	userAgent string
-	sleep     func(context.Context, time.Duration) error
+	http           *http.Client
+	storage        *http.Client
+	storageTimeout time.Duration
+	base           string
+	token          string
+	timeout        time.Duration
+	userAgent      string
+	sleep          func(context.Context, time.Duration) error
 }
 
 func sleepContext(ctx context.Context, d time.Duration) error {
@@ -296,20 +299,20 @@ func decodeItems[T any](res *callResult) ([]T, error) {
 
 // storagePut sends bytes to a signed upload URL without any credential.
 func (t *transport) storagePut(ctx context.Context, target string, data []byte, contentType UploadContentType) error {
-	reqCtx, cancel := context.WithTimeout(ctx, t.timeout)
+	reqCtx, cancel := context.WithTimeout(ctx, t.storageTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPut, target, bytes.NewReader(data))
 	if err != nil {
-		return &StorageError{Message: "the upload URL is not usable: " + t.redact(err).Error()}
+		return &StorageError{Message: "the upload URL is not usable: " + t.redact(innerError(err)).Error()}
 	}
 	req.Header.Set("Content-Type", string(contentType))
 	req.Header.Set("User-Agent", t.userAgent)
-	resp, err := t.http.Do(req)
+	resp, err := t.storage.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return &StorageError{Message: "upload failed: " + t.redact(err).Error()}
+		return &StorageError{Message: "upload failed: " + t.redact(innerError(err)).Error()}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -321,19 +324,19 @@ func (t *transport) storagePut(ctx context.Context, target string, data []byte, 
 
 // storageGet fetches a signed download URL without any credential and never reads more than expected+1 bytes.
 func (t *transport) storageGet(ctx context.Context, target string, expected int64) ([]byte, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, t.timeout)
+	reqCtx, cancel := context.WithTimeout(ctx, t.storageTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, target, nil)
 	if err != nil {
-		return nil, &StorageError{Message: "the download URL is not usable: " + t.redact(err).Error()}
+		return nil, &StorageError{Message: "the download URL is not usable: " + t.redact(innerError(err)).Error()}
 	}
 	req.Header.Set("User-Agent", t.userAgent)
-	resp, err := t.http.Do(req)
+	resp, err := t.storage.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, &StorageError{Message: "download failed: " + t.redact(err).Error()}
+		return nil, &StorageError{Message: "download failed: " + t.redact(innerError(err)).Error()}
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -344,7 +347,7 @@ func (t *transport) storageGet(ctx context.Context, target string, expected int6
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, &StorageError{Message: "download failed: " + t.redact(err).Error()}
+		return nil, &StorageError{Message: "download failed: " + t.redact(innerError(err)).Error()}
 	}
 	if int64(len(data)) > expected {
 		return nil, &StorageError{Message: fmt.Sprintf("storage sent more than the declared %d bytes", expected)}
@@ -356,4 +359,13 @@ func storageFailure(resp *http.Response, method string) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	p := readProblem(resp.StatusCode, body)
 	return &StorageError{Message: fmt.Sprintf("storage answered HTTP %d (%s) to %s", resp.StatusCode, p.Code, method), Status: resp.StatusCode, Code: p.Code}
+}
+
+// innerError drops the request URL, which carries the signature, from an error of the HTTP client.
+func innerError(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) && urlErr.Err != nil {
+		return urlErr.Err
+	}
+	return err
 }
