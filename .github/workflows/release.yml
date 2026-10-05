@@ -24,6 +24,10 @@ jobs:
         run: |
           semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
           [[ "$GITHUB_REF_NAME" =~ $semver ]] || { echo "::error::$GITHUB_REF_NAME is not a semantic version tag"; exit 1; }
+      - name: The version constant matches the tag
+        run: |
+          declared=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' client.go)
+          [ "$declared" = "${GITHUB_REF_NAME#v}" ] || { echo "::error::client.go declares $declared but the tag is $GITHUB_REF_NAME"; exit 1; }
       - name: The tag points at a commit on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
