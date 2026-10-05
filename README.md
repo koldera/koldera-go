@@ -233,7 +233,7 @@ creation call is repeated with the same key, so a lost response does not create 
 | `WithTimeout` | per-request timeout for API calls (default 30 s); a `WithWait` stretches it to cover the wait plus 10 s |
 | `WithStorageTimeout` | timeout of one signed upload or download (default 10 minutes) |
 | `WithHTTPClient` | your `*http.Client` for API calls |
-| `WithStorageHTTPClient` | your `*http.Client` for signed uploads and downloads |
+| `WithStorageHTTPClient` | your `*http.Client` for signed uploads and downloads (for example a proxy); it must not add credentials |
 | `WithUserAgentSuffix` | product token appended to the SDK's User-Agent |
 
 Per call on job creation: `WithWait`, `WithUntilFinished`, `WithIdempotencyKey` and `WithOnResponse`. PDF and HTML
