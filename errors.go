@@ -10,18 +10,27 @@ import (
 // It is raised before any request is made.
 var ErrConfiguration = errors.New("koldera: invalid configuration or argument")
 
-// Sentinels for errors.Is; every API error matches the sentinels of its status class.
 var (
-	ErrUnauthorized         = errors.New("koldera: unauthorized (401)")
-	ErrForbidden            = errors.New("koldera: forbidden (403)")
-	ErrNotFound             = errors.New("koldera: not found (404)")
-	ErrConflict             = errors.New("koldera: conflict (409)")
-	ErrValidation           = errors.New("koldera: invalid request or input (400, 422)")
+	// ErrUnauthorized matches an error where the server answered 401.
+	ErrUnauthorized = errors.New("koldera: unauthorized (401)")
+	// ErrForbidden matches an error where the server answered 403.
+	ErrForbidden = errors.New("koldera: forbidden (403)")
+	// ErrNotFound matches an error where the server answered 404.
+	ErrNotFound = errors.New("koldera: not found (404)")
+	// ErrConflict matches an error where the server answered 409.
+	ErrConflict = errors.New("koldera: conflict (409)")
+	// ErrValidation matches an error where the server answered 400 or 422.
+	ErrValidation = errors.New("koldera: invalid request or input (400, 422)")
+	// ErrUnsupportedMediaType matches an error where the server answered 415.
 	ErrUnsupportedMediaType = errors.New("koldera: unsupported media type (415)")
-	ErrHostNotAllowed       = errors.New("koldera: host not allowed (421)")
-	ErrRateLimited          = errors.New("koldera: rate limited (429)")
-	ErrUnavailable          = errors.New("koldera: service unavailable (503)")
-	ErrServer               = errors.New("koldera: server error (5xx)")
+	// ErrHostNotAllowed matches an error where the server answered 421.
+	ErrHostNotAllowed = errors.New("koldera: host not allowed (421)")
+	// ErrRateLimited matches an error where the server answered 429.
+	ErrRateLimited = errors.New("koldera: rate limited (429)")
+	// ErrUnavailable matches an error where the server answered 503.
+	ErrUnavailable = errors.New("koldera: service unavailable (503)")
+	// ErrServer matches an error where the server answered 5xx, or sent a malformed success body.
+	ErrServer = errors.New("koldera: server error (5xx)")
 )
 
 // ProblemError is one problem of a rejected structured document; Path is a JSON Pointer.

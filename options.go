@@ -13,6 +13,9 @@ type config struct {
 	token           string
 	httpClient      *http.Client
 	nilHTTPClient   bool
+	storageClient   *http.Client
+	nilStorage      bool
+	storageTimeout  time.Duration
 	timeout         time.Duration
 	userAgentSuffix string
 }
@@ -30,9 +33,9 @@ func WithToken(token string) Option {
 	return func(c *config) { c.token = token }
 }
 
-// WithHTTPClient supplies the HTTP client (proxies, TLS, connection pooling, instrumentation). Default: a new
-// http.Client. The per-request timeout is applied through the request context, so the client's own Timeout can stay
-// unset.
+// WithHTTPClient supplies the HTTP client for calls to the API (proxies, TLS, pooling, instrumentation). It is not used
+// for signed storage URLs, so a transport that adds credentials never sees them; see WithStorageHTTPClient. The
+// per-request timeout is applied through the request context, so the client's own Timeout can stay unset.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *config) {
 		c.httpClient = hc
@@ -40,7 +43,21 @@ func WithHTTPClient(hc *http.Client) Option {
 	}
 }
 
-// WithTimeout sets the time budget of one request (default 30 s). A request that asks the server to wait gets that
+// WithStorageHTTPClient supplies the HTTP client for signed upload and download URLs (for example to set a proxy). It
+// must not add credentials. Default: an SDK-owned client with a clone of http.DefaultTransport.
+func WithStorageHTTPClient(hc *http.Client) Option {
+	return func(c *config) {
+		c.storageClient = hc
+		c.nilStorage = hc == nil
+	}
+}
+
+// WithStorageTimeout sets the time budget of one storage upload or download (default 10 minutes).
+func WithStorageTimeout(d time.Duration) Option {
+	return func(c *config) { c.storageTimeout = d }
+}
+
+// WithTimeout sets the time budget of one API request (default 30 s); storage transfers use WithStorageTimeout. A request that asks the server to wait gets that
 // wait plus 10 s when this is shorter.
 func WithTimeout(d time.Duration) Option {
 	return func(c *config) { c.timeout = d }
