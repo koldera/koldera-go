@@ -101,6 +101,8 @@ its real state. When the job is still running after the wait, the call returns i
 keep polling, or call `client.Jobs.Wait(ctx, id)` yourself. A failed job is returned, not an error: read `job.Error`.
 Polling stops when the job is no longer queued or running, honours `Retry-After`, and returns `*koldera.TimeoutError`
 when your own limit (`WithPollTimeout`) runs out; the job keeps going on the server.
+`WithUntilFinished` takes the same options as `Jobs.Wait`, for example
+`WithUntilFinished(koldera.WithPollTimeout(5*time.Minute))`.
 
 ```go
 job, err := client.Jobs.Wait(ctx, jobID,
