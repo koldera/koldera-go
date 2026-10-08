@@ -30,6 +30,19 @@ node scripts/check-source-hygiene.mjs                    # must exit 0
 node --test scripts/check-source-hygiene.test.mjs
 ```
 
+### Against a real koldera-core
+
+`live_test.go` runs the SDK against a running koldera-core (synthetic inputs only): a PDF analyze and fix with the fixed copy
+downloaded and its SHA-256 checked, one HTML-to-PDF job and one structured document job. It is skipped unless
+`KOLDERA_URL` and `KOLDERA_TOKEN` are both set, so CI without a server skips it:
+
+```bash
+KOLDERA_URL=http://localhost:8080 KOLDERA_TOKEN=... go test -run TestLiveCore -v
+```
+
+Start koldera-core locally with `docker run` as in its README (bind it to `127.0.0.1` and set
+`KOLDERA_PUBLIC_URL=http://localhost:8080`).
+
 ### Dependencies
 
 The client uses the standard library only. CI fails if `go.mod` gains a `require` line; a dependency needs an issue
