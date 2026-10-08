@@ -684,6 +684,31 @@ func TestReadsAJobOfASession(t *testing.T) {
 	}
 }
 
+func TestDeclarationWithheldIsItsOwnVerdictNeverPassed(t *testing.T) {
+	for _, name := range []string{"job-completed-fix-declaration-withheld", "job-completed-document-declaration-withheld"} {
+		g := newGolden(t)
+		g.expect(fix(name))
+		var body struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(fixtures[name].Response.Body, &body); err != nil {
+			t.Fatal(err)
+		}
+		job := jobOf(t)(g.client().Jobs.Get(bg, body.ID))
+		if job.State != JobStateCompleted || !job.ManualReviewRequired {
+			t.Errorf("%s: job = %+v", name, job)
+		}
+		for _, v := range []*MachineValidation{job.Validation, job.FinalValidation} {
+			if v == nil || v.Status != ValidationDeclarationWithheld || v.Status == ValidationPassed {
+				t.Fatalf("%s: validation = %+v", name, v)
+			}
+			if len(v.FailedRules) != 1 || v.FailedRules[0] != (FailedRule{RuleID: "ISO 14289-1:2014 5-1", Count: 1}) {
+				t.Errorf("%s: failed rules = %+v", name, v.FailedRules)
+			}
+		}
+	}
+}
+
 func TestAJobWithoutArtifactsHasAnEmptyList(t *testing.T) {
 	g := newGolden(t)
 	g.expect(fix("artifacts-empty"))

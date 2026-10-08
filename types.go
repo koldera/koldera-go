@@ -82,6 +82,9 @@ const (
 	ValidationFailed  ValidationStatus = "failed"
 	ValidationErrored ValidationStatus = "error"
 	ValidationNotRun  ValidationStatus = "not_run"
+	// ValidationDeclarationWithheld: the only failing check is the missing PDF/UA identifier (veraPDF 5-1, still in
+	// FailedRules), which was not written because declaring PDF/UA requires a human review. It is not a pass.
+	ValidationDeclarationWithheld ValidationStatus = "declaration_withheld"
 )
 
 // FailedRule is one failing machine rule and how often it fired.

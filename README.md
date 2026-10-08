@@ -9,6 +9,11 @@ Everything koldera-core reports is a **machine check**. A person still has to re
 `job.ManualReviewRequired` is always `true`, and this SDK never turns a passing machine check into a statement that a
 document is accessible.
 
+`job.Validation.Status` is `passed`, `failed`, `error`, `not_run` or `declaration_withheld`
+(`ValidationDeclarationWithheld`). `declaration_withheld` means the only failing check is the missing PDF/UA identifier
+(veraPDF `5-1`, still listed in `FailedRules`): it was not written because declaring PDF/UA requires a human review.
+It is **not** a pass. Treat a status you do not know as no verdict.
+
 Status: early release (0.1). The API may change before 1.0.
 
 ## Install
