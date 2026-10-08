@@ -48,7 +48,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: oldstable
+          go-version: '1.24' # the go directive of go.mod
       - run: go test -race ./...
 
   github-release:
