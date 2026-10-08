@@ -1,0 +1,54 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not attach real customer documents or secrets; a small synthetic file or a minimal
+        program that shows the problem is enough. Security problems go through the private report described in
+        SECURITY.md, not here.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Client calls (jobs, uploads, downloads)
+        - Waiting and polling
+        - Structured documents
+        - Errors and retries
+        - Documentation
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SDK version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: core
+    attributes:
+      label: koldera-core version
+      description: From `client.Info` or the image tag
+      placeholder: 0.1.0
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      description: Go version, operating system
+      placeholder: go1.26.0 linux/amd64
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Steps to reproduce, what you expected and what you got. Include the problem `Code` of a `*koldera.APIError` if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Remove tokens, URLs with credentials and document content.
+      render: text

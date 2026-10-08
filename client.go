@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -39,7 +42,7 @@ type Client struct {
 // NewClient validates the configuration and sends nothing. The base URL comes from WithBaseURL or KOLDERA_URL, the
 // token from WithToken or KOLDERA_TOKEN.
 func NewClient(opts ...Option) (*Client, error) {
-	cfg := config{timeout: 30 * time.Second}
+	cfg := config{timeout: 30 * time.Second, storageTimeout: 10 * time.Minute}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&cfg)
@@ -64,6 +67,12 @@ func NewClient(opts ...Option) (*Client, error) {
 	if cfg.timeout <= 0 {
 		return nil, configError("the timeout must be positive")
 	}
+	if cfg.storageTimeout <= 0 {
+		return nil, configError("the storage timeout must be positive")
+	}
+	if cfg.nilStorage {
+		return nil, configError("the storage HTTP client must not be nil")
+	}
 	if cfg.nilHTTPClient {
 		return nil, configError("the HTTP client must not be nil")
 	}
@@ -71,11 +80,19 @@ func NewClient(opts ...Option) (*Client, error) {
 	if hc == nil {
 		hc = &http.Client{}
 	}
+	sc := cfg.storageClient
+	if sc == nil {
+		// A signed URL must be answered where it points: a redirect is returned as the 3xx it is, never followed.
+		sc = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		if base, ok := http.DefaultTransport.(*http.Transport); ok {
+			sc.Transport = base.Clone()
+		}
+	}
 	agent := sdkName + "/" + Version
 	if cfg.userAgentSuffix != "" {
 		agent += " " + cfg.userAgentSuffix
 	}
-	t := &transport{http: hc, base: strings.TrimRight(cfg.baseURL, "/"), token: cfg.token, timeout: cfg.timeout, userAgent: agent, sleep: sleepContext}
+	t := &transport{http: hc, base: strings.TrimRight(cfg.baseURL, "/"), token: cfg.token, timeout: cfg.timeout, storage: sc, storageTimeout: cfg.storageTimeout, userAgent: agent, sleep: sleepContext}
 	c := &Client{t: t}
 	c.Uploads = &Uploads{c: c}
 	c.Jobs = &Jobs{c: c}
@@ -544,14 +561,42 @@ func (a *Artifacts) DownloadTo(ctx context.Context, artifact Artifact, w io.Writ
 	return err
 }
 
-// DownloadToFile verifies the artifact like Download and only then writes the file. A file is never left behind for
-// bytes that do not match.
+// DownloadToFile verifies the artifact like Download and only then writes the file, through a temporary file in the same
+// directory that is renamed into place. It fails with an error matching fs.ErrExist when path already exists and never
+// leaves a partial or temporary file behind.
 func (a *Artifacts) DownloadToFile(ctx context.Context, artifact Artifact, path string) error {
+	if _, err := os.Lstat(path); err == nil {
+		return fmt.Errorf("%s already exists: %w", path, fs.ErrExist)
+	}
 	data, err := a.fetch(ctx, artifact)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".koldera-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	if err := os.Link(tmp.Name(), path); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("%s already exists: %w", path, fs.ErrExist)
+		}
+		if _, statErr := os.Lstat(path); statErr == nil {
+			return fmt.Errorf("%s already exists: %w", path, fs.ErrExist)
+		}
+		return os.Rename(tmp.Name(), path)
+	}
+	return nil
 }
 
 // ---- client sessions ------------------------------------------------------------------------------
