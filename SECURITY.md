@@ -34,5 +34,5 @@ Out of scope:
 - vulnerabilities in the Go standard library or toolchain themselves (report them to the Go project); we want to hear
   about a vulnerable Go version we require, though;
 - vulnerabilities in the koldera-core server: report those to
-  [koldera-core](https://github.com/koldera/koldera-core/security/policy);
+  security@koldera-accessibility.dev and say that the report concerns koldera-core;
 - findings that need an application to hand a server token to a browser on purpose.
