@@ -256,7 +256,8 @@ minutes, so list the artifacts shortly before you download them.
 | 0.1.x | 0.1.x | 1.24 or later |
 
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
-(`contracts/CORE_VERSION`), and CI checks that the copy matches. Run koldera-core as described in its
+(`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
+that the copy matches. Run koldera-core as described in its
 README and deployment guide.
 
 ## Links
