@@ -44,7 +44,8 @@ func WithHTTPClient(hc *http.Client) Option {
 }
 
 // WithStorageHTTPClient supplies the HTTP client for signed upload and download URLs (for example to set a proxy). It
-// must not add credentials. Default: an SDK-owned client with a clone of http.DefaultTransport.
+// must not add credentials. Default: an SDK-owned client with a clone of http.DefaultTransport that does not follow
+// redirects.
 func WithStorageHTTPClient(hc *http.Client) Option {
 	return func(c *config) {
 		c.storageClient = hc

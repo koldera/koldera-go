@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1618,5 +1619,36 @@ func TestDownloadToFileIsAtomicAndNeverOverwrites(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(dir2); len(entries) != 0 {
 		t.Errorf("leftover files: %v", entries)
+	}
+}
+
+func TestTheDefaultStorageClientRefusesRedirects(t *testing.T) {
+	var mu sync.Mutex
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		mu.Unlock()
+		if r.URL.Path == "/d" {
+			http.Redirect(w, r, "/elsewhere", http.StatusFound)
+			return
+		}
+		_, _ = w.Write([]byte{1})
+	}))
+	defer srv.Close()
+	c, err := NewClient(WithBaseURL("http://koldera.test"), WithToken(secretKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := Artifact{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", Kind: ArtifactOriginal, SHA256: strings.Repeat("0", 64), SizeBytes: 1, DownloadURL: srv.URL + "/d"}
+	_, err = c.Artifacts.Download(bg, a)
+	var storage *StorageError
+	if !errors.As(err, &storage) || storage.Status != http.StatusFound {
+		t.Errorf("error = %#v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !reflect.DeepEqual(paths, []string{"/d"}) {
+		t.Errorf("requests = %v", paths)
 	}
 }

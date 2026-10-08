@@ -82,7 +82,8 @@ func NewClient(opts ...Option) (*Client, error) {
 	}
 	sc := cfg.storageClient
 	if sc == nil {
-		sc = &http.Client{}
+		// A signed URL must be answered where it points: a redirect is returned as the 3xx it is, never followed.
+		sc = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 		if base, ok := http.DefaultTransport.(*http.Transport); ok {
 			sc.Transport = base.Clone()
 		}
