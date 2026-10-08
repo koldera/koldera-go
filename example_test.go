@@ -253,3 +253,34 @@ func ExampleAPIError() {
 		fmt.Println("check KOLDERA_TOKEN")
 	}
 }
+
+func ExampleClient_Health() {
+	client, err := koldera.NewClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+	health, err := client.Health(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("%+v\n", *health)
+}
+
+func ExampleArtifacts_Download() {
+	client, err := koldera.NewClient()
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	artifacts, err := client.Jobs.Artifacts(ctx, "4d2d5a6e-2b1c-4e4a-9d6b-1f3c5e7a9b01")
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, a := range artifacts {
+		data, err := client.Artifacts.Download(ctx, a) // verified by size and SHA-256 before it is returned
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(a.Kind, len(data))
+	}
+}

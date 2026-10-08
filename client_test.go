@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1490,5 +1492,163 @@ func TestEveryGoldenFixtureIsReplayedBySomeTest(t *testing.T) {
 		if !strings.Contains(sources.String(), `"`+name+`"`) {
 			t.Errorf("fixture %q is not replayed by any test", name)
 		}
+	}
+}
+
+// ---- storage isolation (fix round 1) -------------------------------------------------------------
+
+type recordingTransport struct {
+	mu      sync.Mutex
+	uris    []string
+	auth    []string
+	budgets []time.Duration
+	err     error
+}
+
+func (r *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.mu.Lock()
+	r.uris = append(r.uris, req.URL.RequestURI())
+	r.auth = append(r.auth, req.Header.Get("Authorization"))
+	if d, ok := req.Context().Deadline(); ok {
+		r.budgets = append(r.budgets, time.Until(d))
+	}
+	r.mu.Unlock()
+	if r.err != nil {
+		return nil, r.err
+	}
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+func TestStorageRequestsNeverUseTheCallersHTTPClient(t *testing.T) {
+	g := newGolden(t)
+	api := &recordingTransport{}
+	g.expect(steps(uploadPDF, fix("pdf-job-accepted"), fix("artifact-download-original"))...)
+	c := g.client(WithHTTPClient(&http.Client{Transport: api}))
+	jobOf(t)(c.PDF.CreateJob(bg, bytes.NewReader(pdfBytes), PDFModeAnalyze, WithFileName("sample.pdf")))
+	if _, err := c.Artifacts.Download(bg, artifactFor(g, "artifact-download-original")); err != nil {
+		t.Fatal(err)
+	}
+	if len(api.uris) != 2 {
+		t.Fatalf("the API client saw %v; want only the ticket and the job", api.uris)
+	}
+	for _, uri := range api.uris {
+		if strings.Contains(uri, "sig=") {
+			t.Errorf("a signed URL went through the API client: %s", uri)
+		}
+	}
+	for _, ex := range g.last(4) {
+		if strings.Contains(ex.uri, "sig=") && ex.header.Get("Authorization") != "" {
+			t.Errorf("storage request carried Authorization: %s", ex.uri)
+		}
+	}
+}
+
+func TestStorageUsesItsOwnClientAndTimeout(t *testing.T) {
+	g := newGolden(t)
+	store := &recordingTransport{}
+	g.expect(steps(uploadPDF)...)
+	c := g.client(WithTimeout(5*time.Second), WithStorageHTTPClient(&http.Client{Transport: store}))
+	if _, err := c.Uploads.Upload(bg, bytes.NewReader(pdfBytes), ContentTypePDF, "sample.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.uris) != 1 || !strings.Contains(store.uris[0], "sig=") || store.auth[0] != "" {
+		t.Fatalf("storage saw %v auth %v", store.uris, store.auth)
+	}
+	if b := store.budgets[0]; b < 9*time.Minute || b > 10*time.Minute {
+		t.Errorf("default storage budget = %v; want about 10m", b)
+	}
+	store2 := &recordingTransport{}
+	g.expect(steps(uploadPDF)...)
+	c = g.client(WithStorageTimeout(7*time.Minute), WithStorageHTTPClient(&http.Client{Transport: store2}))
+	if _, err := c.Uploads.Upload(bg, bytes.NewReader(pdfBytes), ContentTypePDF, "sample.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	if b := store2.budgets[0]; b < 6*time.Minute || b > 7*time.Minute {
+		t.Errorf("storage budget = %v; want about 7m", b)
+	}
+	_, err := NewClient(WithBaseURL("http://core.test"), WithToken("x"), WithStorageTimeout(0))
+	wantConfig(t, err, "storage timeout")
+	_, err = NewClient(WithBaseURL("http://core.test"), WithToken("x"), WithStorageHTTPClient(nil))
+	wantConfig(t, err, "storage HTTP client")
+}
+
+func TestAStorageErrorNeverContainsTheSignedURL(t *testing.T) {
+	g := newGolden(t)
+	g.expect(fix("upload-ticket-pdf"))
+	c := g.client(WithStorageHTTPClient(&http.Client{Transport: &recordingTransport{err: errors.New("boom")}}))
+	_, err := c.Uploads.Upload(bg, bytes.NewReader(pdfBytes), ContentTypePDF, "sample.pdf")
+	var storage *StorageError
+	if !errors.As(err, &storage) || !strings.Contains(err.Error(), "boom") || strings.Contains(err.Error(), "sig=") || strings.Contains(err.Error(), "/v1/uploads/") {
+		t.Fatalf("error = %v", err)
+	}
+	a := Artifact{Kind: ArtifactOriginal, SizeBytes: 1, DownloadURL: g.srv.URL + "/x?exp=1&sig=SECRETSIG"}
+	_, err = c.Artifacts.Download(bg, a)
+	if err == nil || strings.Contains(err.Error(), "SECRETSIG") || !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("download error = %v", err)
+	}
+}
+
+func TestDownloadToFileIsAtomicAndNeverOverwrites(t *testing.T) {
+	g := newGolden(t)
+	g.expect(fix("artifact-download-original"), fix("artifact-download-original"))
+	c := g.client()
+	a := artifactFor(g, "artifact-download-original")
+	dir := t.TempDir()
+	target := filepath.Join(dir, "out.pdf")
+	if err := c.Artifacts.DownloadToFile(bg, a, target); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 1 {
+		t.Errorf("leftover files: %v", entries)
+	}
+	// an existing target fails and stays intact; the check happens before any download
+	err := c.Artifacts.DownloadToFile(bg, a, target)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("error = %v; want ErrExist", err)
+	}
+	if got, _ := os.ReadFile(target); !bytes.Equal(got, pdfBytes) {
+		t.Error("the existing file was changed")
+	}
+	// a mismatch leaves neither target nor temp file
+	bad := a
+	bad.SHA256 = strings.Repeat("0", 64)
+	dir2 := t.TempDir()
+	if err := c.Artifacts.DownloadToFile(bg, bad, filepath.Join(dir2, "x.pdf")); err == nil {
+		t.Fatal("expected a mismatch")
+	}
+	if entries, _ := os.ReadDir(dir2); len(entries) != 0 {
+		t.Errorf("leftover files: %v", entries)
+	}
+}
+
+func TestTheDefaultStorageClientRefusesRedirects(t *testing.T) {
+	var mu sync.Mutex
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		mu.Unlock()
+		if r.URL.Path == "/d" {
+			http.Redirect(w, r, "/elsewhere", http.StatusFound)
+			return
+		}
+		_, _ = w.Write([]byte{1})
+	}))
+	defer srv.Close()
+	c, err := NewClient(WithBaseURL("http://koldera.test"), WithToken(secretKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := Artifact{ID: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", Kind: ArtifactOriginal, SHA256: strings.Repeat("0", 64), SizeBytes: 1, DownloadURL: srv.URL + "/d"}
+	_, err = c.Artifacts.Download(bg, a)
+	var storage *StorageError
+	if !errors.As(err, &storage) || storage.Status != http.StatusFound {
+		t.Errorf("error = %#v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !reflect.DeepEqual(paths, []string{"/d"}) {
+		t.Errorf("requests = %v", paths)
 	}
 }
