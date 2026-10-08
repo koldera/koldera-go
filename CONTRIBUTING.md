@@ -37,10 +37,12 @@ and an agreement first, because it would also need a licence check.
 
 ### Contracts
 
-`contracts/openapi.yaml` and the schemas next to it are copied from koldera-core at the commit named in
-`contracts/CORE_VERSION`, and the golden fixtures drive the SDK tests (every fixture needs a replay case). When
-koldera-core changes its API, update the copy and the commit id together; CI fetches the files at that commit and fails
-on a difference (it is skipped with a notice while koldera-core is private and not readable with the workflow token).
+`contracts/` is a mirror of [sdk-contract-kit](https://github.com/koldera/sdk-contract-kit): `openapi.yaml` and the
+schemas next to it come from koldera-core at the commit named in `contracts/CORE_VERSION`, the golden fixtures drive
+the SDK tests (every fixture needs a replay case), and `contracts/KIT_VERSION` names the kit commit. Do not edit
+`contracts/` here: change the kit and run its `scripts/sync-to-sdk.mjs` against this repository. CI fetches the kit at
+`contracts/KIT_VERSION` and fails on any difference in `contracts/` (it is skipped with a notice while
+sdk-contract-kit is private and not readable with the workflow token).
 
 ### Source hygiene
 
@@ -85,8 +87,9 @@ workflow runs the whole CI job again for the tagged commit and adds a test run o
 Releases are made by the maintainers. A Go module has no registry upload: the tag is the release, and the Go module
 proxy fetches it on demand.
 
-1. Make sure `main` is green. Until koldera-core is public the CI contract check is skipped, so run it by hand: fetch
-   `contracts/*` from koldera-core at the commit in `contracts/CORE_VERSION` and diff them against this repository.
+1. Make sure `main` is green. Until sdk-contract-kit is public the CI contract check is skipped, so run it by hand:
+   from a clean sdk-contract-kit checkout at the commit in `contracts/KIT_VERSION`, run
+   `node scripts/sync-to-sdk.mjs <this repository>` and check that `git status` shows no change in `contracts/`.
 2. Move the changelog entry from "Unreleased" to the version and date, commit and merge that change through a pull
    request.
 3. Tag the merged commit and push the tag:
