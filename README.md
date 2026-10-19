@@ -9,7 +9,18 @@ Everything koldera-core reports is a **machine check**. A person still has to re
 `job.ManualReviewRequired` is always `true`, and this SDK never turns a passing machine check into a statement that a
 document is accessible.
 
-Status: early release (0.1). The API may change before 1.0.
+**Status:** source preview for the 0.1 API. No version tag or GitHub Release has been published yet. The API may change before 1.0. A separately licensed Koldera Core deployment is required to run jobs.
+
+## Use this checkout
+
+Before the first tag, clone this repository and run its tests with Go 1.24 or later:
+
+```sh
+go test ./...
+go vet ./...
+```
+
+The install command below is for consumers after the repository is public and a version is tagged.
 
 ## Install
 
@@ -257,8 +268,8 @@ minutes, so list the artifacts shortly before you download them.
 
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
 (`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
-that the copy matches. Run koldera-core as described in its
-README and deployment guide.
+that the copy matches. Core deployment documentation is supplied to licensed customers; for access, write to
+`licensing@koldera-accessibility.dev`.
 
 ## Links
 
