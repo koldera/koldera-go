@@ -3,24 +3,8 @@ name: CI
 # The lean per-change gate: one job on the newest Go. The oldest supported Go runs only for release tags (release.yml).
 on:
   pull_request:
-    paths-ignore:
-      - CHANGELOG.md
-      - CONTRIBUTING.md
-      - SECURITY.md
-      - CODE_OF_CONDUCT.md
-      - ".github/ISSUE_TEMPLATE/**"
-      - .github/pull_request_template.md
-      - .github/CODEOWNERS
   push:
     branches: [main]
-    paths-ignore:
-      - CHANGELOG.md
-      - CONTRIBUTING.md
-      - SECURITY.md
-      - CODE_OF_CONDUCT.md
-      - ".github/ISSUE_TEMPLATE/**"
-      - .github/pull_request_template.md
-      - .github/CODEOWNERS
   workflow_call:
 
 permissions:
