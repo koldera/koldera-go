@@ -1,6 +1,6 @@
 # koldera-go
 
-Go SDK for koldera-core, the commercially licensed, self-hosted service that checks PDFs against
+Go SDK for koldera-core, the AGPL-3.0-only, self-hosted service that checks PDFs against
 the PDF/UA-1 machine rules, writes fixed copies, renders HTML and structured documents to tagged PDF, and scans web
 pages. Module `github.com/koldera/koldera-go`, package `koldera`, standard library only, Go 1.24 or later. Every call
 takes a `context.Context` first.
@@ -14,7 +14,20 @@ document is accessible.
 (veraPDF `5-1`, still listed in `FailedRules`): it was not written because declaring PDF/UA requires a human review.
 It is **not** a pass. Treat a status you do not know as no verdict.
 
-Status: early release (0.1). The API may change before 1.0.
+
+**Status:** source preview for the 0.1 API. No version tag or GitHub Release has been published yet. The API may change
+before 1.0. A running [Koldera Core](https://github.com/koldera/koldera-core) deployment is required to run jobs.
+
+## Use this checkout
+
+Before the first tag, clone this repository and run its tests with Go 1.24 or later:
+
+```sh
+go test ./...
+go vet ./...
+```
+
+The install command below is for consumers after the repository is public and a version is tagged.
 
 ## Install
 
@@ -262,8 +275,8 @@ minutes, so list the artifacts shortly before you download them.
 
 The vendored API description in [`contracts/`](contracts) records the koldera-core commit it was taken from
 (`contracts/CORE_VERSION`) and the sdk-contract-kit commit it was synced from (`contracts/KIT_VERSION`), and CI checks
-that the copy matches. Run koldera-core as described in its
-README and deployment guide.
+that the copy matches. Core deployment documentation is supplied to licensed customers; for access, write to
+`licensing@koldera-accessibility.dev`.
 
 ## Links
 
@@ -273,4 +286,4 @@ README and deployment guide.
 
 This SDK is licensed under the [Apache License 2.0](LICENSE).
 
-koldera-core is commercially licensed, self-hosted software; this SDK is Apache-2.0 and talks to it over its HTTP API.
+koldera-core is AGPL-3.0-only, self-hosted software; this SDK is Apache-2.0 and talks to it over its HTTP API.
